@@ -28,9 +28,78 @@ def generate_anchors(base_size=16, ratios=None, scales=None):
     areas = anchors[:, 2] * anchors[:, 3] # 9*1    S1 S2 S3 S1 S2 S3 S1 S2 S3
     # np.repeat(ratios, len(scales)) == 0.5 0.5 0.5 1 1 1 2 2 2
     anchors[:, 2] = np.sqrt(areas/np.repeat(ratios, len(scales)))
+    # 以当前anchor的中心点为坐标原点建立直角坐标系，求出左上角坐标和右下角坐标，存入当前数组，格式为(x1,y1,x2,y2)。
+    #np.tile(a, (m, n)) 将a拼成m行n列的数组
+    # 下面一句就是 将上面得到的同面积不同尺度的W H ，以（0， 0） 为原点组成bbox
+    anchors[:, 0::2] -= np.tile(anchors[:, 2]*0.5, (2, 1)).T  # 第0列和第2列  x1 x2 相当于 x1=0-w/2 x2 = w-w/2
+    anchors[:, 1::2] -= np.tile(anchors[:, 3] * 0.5, (2, 1)).T # 最后是
+    return anchors  # 9*4
 
+# 将上面计算到的anchor映射到每个feature map上得到真实坐标
+def shift(shape, stride, anchors):
+    '''
+    shape为当前feature map大小
+    stride为相较于原图的stride，用于将anchor 映射到原图的坐标
+    '''
+    # 首先将该fetaure map划分网格，并+0.5 得到每个网格的中心坐标 并映射到原图
+    shift_x = (np.arange(0, shape[1]) + 0.5) * stride
+    shift_y = (np.arange(0, shape[0]) + 0.5) * stride
 
+    # np.meshgrid(x, y)得到网格矩阵
+    # x为 m y为n
+    # shift_x 就为 n*m
+    # shift_y 也为 n*m
+    '''
+    >>> shift_x = (np.arange(0, 3) + 0.5)
+    >>> shift_y = (np.arange(0, 2) + 0.5)
+    >>> shift_x
+    array([0.5, 1.5, 2.5])
+    >>> shift_y
+    array([0.5, 1.5])
+    >>> shift_x, shift_y = np.meshgrid(shift_x, shift_y)
+    >>> shift_x
+    array([[0.5, 1.5, 2.5],
+           [0.5, 1.5, 2.5]])
+    >>> shift_y
+    array([[0.5, 0.5, 0.5],
+           [1.5, 1.5, 1.5]])
+    最后形成的坐标是 (0.5, 0.5) (1.5, 0.5) （2.5, 0.5）...
+    两个矩阵对应位置组成的（x，y）
+    >>>
 
+    '''
+    shift_x, shift_y = np.meshgrid(shift_x, shift_y) # 所有网格的坐标
+
+    # 再把shift——x拉成一行
+    shift_x = shift_x.ravel() # np.reshape(shift_x, [-1])
+    shift_y = np.reshape(shift_y, [-1])
+    # stack
+    shifts = np.stack([
+        shift_x,
+        shift_y,
+        shift_x,
+        shift_y
+    ], axis=0)
+    # 对于每一个feature map 假设为 8*8  这里就形成4*64的矩阵 矩阵中的每一列为cx cy cx cy，为该feature map上的网格中心点 映射到原图上的位置。
+
+    shifts = np.transpose(shifts) # 再转置 64*4
+
+    '''
+    我们得到的anchor坐标实际上可以看做是以（0， 0）为坐标原点得到的，
+    那么坐标值实际上可以看做是左上角和右下角两个点对中心点的偏移量。那么如果我们将中心
+    点换做p3的feature map的网格点，然后将偏移量叠加至上面，不就完成了anchor到feature map的映射嘛 。
+    最后返回(x1 y1 x2 y2)
+    '''
+    # add A anchors (1, A, 4) to
+    # cell K shifts (K, 1, 4) to get
+    # shift anchors (K, A, 4)
+    # reshape to (K*A, 4) shifted anchors
+    A = anchors.shape[0] # 9
+    K = shifts.shape[0] # 8*8 = 64
+    # (anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)) == (1, k*A, 4)
+    all_anchors = (anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
+    all_anchors = all_anchors.reshape((K * A, 4))
+    return all_anchors
 
 
 class Anchors(nn.Module):
@@ -39,6 +108,7 @@ class Anchors(nn.Module):
         # 预设默认值
         if pyramid_levels is None:
             self.pyramid_levels = [3, 4, 5, 6, 7]  # 下采样的倍数
+            #self.pyramid_levels = [1, 2]  # 下采样的倍数
         else:
             self.pyramid_levels = pyramid_levels
 
@@ -71,8 +141,8 @@ class Anchors(nn.Module):
 
         # 首先计算每个层的fature map大小
         # 向上取整
-        image_shape = [np.ceil(image_shape / x) for x in self.pyramid_levels]
-
+        image_shape = [np.ceil(image_shape / 2 ** x) for x in self.pyramid_levels]
+        #image_shape = [(image_shape + 2 ** x - 1) // (2 ** x) for x in self.pyramid_levels]
         #维度为0，说明可以无限制的扩充
         all_anchors = np.zeros((0, 4)).astype(np.float32)
         for idx, p in enumerate(self.pyramid_levels):
@@ -84,7 +154,14 @@ class Anchors(nn.Module):
             all_anchors = np.append(all_anchors, shifted_anchors, axis=0)  # 扩充
         all_anchors = np.expand_dims(all_anchors, axis=0) # 增加一个维度
 
+        # 输出的是anchor cx cy w h
         return torch.from_numpy(all_anchors.astype(np.float32)) # 返回的是Tensor
 
 
-
+if __name__ == '__main__':
+    # 改变c不变输出，说明通道没有影响
+    C = torch.randn([6,1,16,16])
+    model = Anchors()
+    out = model(C)
+    print(out.shape)
+    print(out)

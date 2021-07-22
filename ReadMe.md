@@ -69,3 +69,6 @@ shuffle = True:是否打乱数据
 
 sampler: 其和shuffle是互斥的，一般默认即可。是一个类，继承自from torch.utils.data.sampler import Sampler。 要实现`__init__  __iter__  __len__`
 
+## focal loss
+
+[focal loss 通俗讲解 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/266023273)

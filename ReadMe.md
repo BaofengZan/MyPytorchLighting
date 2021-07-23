@@ -72,3 +72,20 @@ sampler: 其和shuffle是互斥的，一般默认即可。是一个类，继承�
 ## focal loss
 
 [focal loss 通俗讲解 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/266023273)
+
+
+
+## pytorch训练流程
+
+https://zhuanlan.zhihu.com/p/338209091
+
+model.train():
+在使用pytorch构建神经网络的时候，训练过程中会在程序上方添加一句model.train()，作用是启用batch normalization和drop out。
+
+model.eval():
+测试过程中会使用model.eval()，这时神经网络会沿用batch normalization的值，并不使用drop out。
+
+
+
+optimizer.step()通常用在每个mini-batch之中，而scheduler.step()通常用在epoch里面,但是不绝对
+

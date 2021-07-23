@@ -154,8 +154,12 @@ class Anchors(nn.Module):
             all_anchors = np.append(all_anchors, shifted_anchors, axis=0)  # 扩充
         all_anchors = np.expand_dims(all_anchors, axis=0) # 增加一个维度
 
-        # 输出的是anchor xyxy
-        return torch.from_numpy(all_anchors.astype(np.float32)) # 返回的是Tensor
+        # # 输出的是anchor xyxy
+        # return torch.from_numpy(all_anchors.astype(np.float32)) # 返回的是Tensor
+        if torch.cuda.is_available():
+            return torch.from_numpy(all_anchors.astype(np.float32)).cuda()
+        else:
+            return torch.from_numpy(all_anchors.astype(np.float32))
 
 
 if __name__ == '__main__':

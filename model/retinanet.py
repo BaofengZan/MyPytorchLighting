@@ -35,10 +35,16 @@ class RetinaNet(nn.Module):
         self.clip = ClipBoxes()
 
         self.focalLoss = FocalLoss()
-        self.training = train_phase
+        #self.training = train_phase  // 可以在train.py中直接访问赋值。（public成员）
+    def freeze_bn(self):
+        '''Freeze BatchNorm layers.'''
+        for layer in self.modules():
+            if isinstance(layer, nn.BatchNorm2d):
+                layer.eval()
+
     def forward(self, x):
         if self.training:
-            img_batch, annotations = x
+            img_batch, annotations = x # annotations （为所有图像的objs [M，5]）
         else:
             img_batch = x
         # 再我们构建网络时，也要生成该网络的anchors。
@@ -48,7 +54,7 @@ class RetinaNet(nn.Module):
         # 不过这个出来的shape的batchsize总是为1
         #这里输入的x应该为 nchw
         # 这里的输入 x 因该区分train和test：train带有annotation test可以不用带
-        anchors = self.anchors(img_batch)
+        anchors = self.anchors(img_batch) # [1, N, 4] N就为 9*（多层网格乘积之和）
         ##########
         _, C3, C4, C5 = self.resnet(img_batch)
         # [P3_x, p4_x, p5_x, P6_x, P7_x]
@@ -120,10 +126,10 @@ class RetinaNet(nn.Module):
             return finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates
 if __name__ == '__main__':
     C = torch.randn([2, 3, 512, 512])
-    model = RetinaNet(80)
+    model = RetinaNet(80, False)
     out = model(C)
     for i in range(len(out)):
         print(out[i].shape)
 # torch.Size([2, 49104, 4])
 # torch.Size([2, 49104, 80])  # 这里80是类别置信度。
-
+# 49104=9*(64*64+32*32+16*16+8*8+4*4)   是预测的所有框

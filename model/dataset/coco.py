@@ -13,6 +13,11 @@ from torch.utils.data import Dataset, DataLoader
 from pycocotools.coco import COCO
 import cv2
 
+import matplotlib.pyplot as plt
+from skimage import img_as_ubyte
+
+
+
 class COCODataset(Dataset):
     def __init__(self, jsonPath, imgPath, transform=None):
         self.json_path = jsonPath
@@ -51,6 +56,9 @@ class COCODataset(Dataset):
         '''
         # 这里用skimage
         img = skimage.io.imread(path)
+        # cv_image = img_as_ubyte(img)
+        # cv2.imwrite("iiii.jpg", cv_image)
+
         if len(img.shape) == 2:
             img = skimage.color.gray2rgb(img)  #灰度图转rgb
 

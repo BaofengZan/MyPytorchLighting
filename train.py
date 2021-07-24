@@ -22,6 +22,7 @@ from torch.utils.data import DataLoader  #加载COCODataset对象的
 #import eval_coco
 from model.retinanet import RetinaNet
 
+import cv2
 
 def main(args=None):
     # 先解析参数
@@ -84,3 +85,8 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+    # imgpath = r"E:\Datasets\oneimg\aachen_000003_000019_rightImg8bit.png"
+    # im = cv2.imread(imgpath)
+    # cv2.imshow("re", im)
+    # cv2.waitKey(0)

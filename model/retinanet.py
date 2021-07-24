@@ -65,6 +65,8 @@ class RetinaNet(nn.Module):
         classification = torch.cat([self.classification(feature) for feature in fpn_out_5_layer_list], dim=1)
 
         if self.training:
+            print("cls---", classification[0, :5, :5])
+            print("regre---", regression[0, :5, :5])
             return self.focalLoss(classification, regression, anchors, annotations)
         else:
             classification = torch.randn([2, 49104, 80]) # 测试使用

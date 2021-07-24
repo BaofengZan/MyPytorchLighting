@@ -105,7 +105,7 @@ class FocalLoss(nn.Module):
                     # 交叉熵
                     bce = -(torch.log(1.0 - classification))
                     cls_loss = focal_weight * bce  # focal loss
-                    classification_losses.append(cls_loss.sum())
+                    classification_losses.append(cls_loss.mean()) # TODO 用mean还是sum需要验证
                     regression_losses.append(torch.tensor(0).float().cuda())  # 负样本只分类loss
                 else:
                     alpha_factor = torch.ones(classification.shape) * alpha
@@ -115,7 +115,7 @@ class FocalLoss(nn.Module):
                     # 交叉熵
                     bce = -(torch.log(1.0 - classification))
                     cls_loss = focal_weight * bce  # focal loss
-                    classification_losses.append(cls_loss.sum())
+                    classification_losses.append(cls_loss.mean())
                     regression_losses.append(torch.tensor(0).float()) # 负样本只分类loss
 
                 continue

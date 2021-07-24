@@ -56,7 +56,7 @@ class COCODataset(Dataset):
         '''
         # 这里用skimage
         img = skimage.io.imread(path)
-        # cv_image = img_as_ubyte(img)
+
         # cv2.imwrite("iiii.jpg", cv_image)
 
         if len(img.shape) == 2:
@@ -103,6 +103,17 @@ class COCODataset(Dataset):
         # 根据idx拿值
         img = self.load_img(idx)
         annot = self.load_annotations(idx)
+
+        # 画图
+        cv_image = img_as_ubyte(img)
+        cv_image = cv_image[:, :, ::-1].copy()
+        #cv2.rectangle(cv_image, (0, 0), (100, 100), (0, 0, 255))
+        for b in annot:
+            cv2.rectangle(cv_image, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (0, 0, 255))
+        cv2.imshow("dd", cv_image)
+        cv2.waitKey(1000)
+
+
         sample= {"img":img, "annot":annot}
         if self.transform:
             sample = self.transform(sample)

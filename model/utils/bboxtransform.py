@@ -27,6 +27,9 @@ class BBoxTransform(nn.Module):
         c_x = anchors[:, :, 0] + 0.5 * width
         c_y = anchors[:, :, 1] + 0.5*height
 
+        device = anchors.device
+        factor = torch.tensor([[0.1, 0.1, 0.2, 0.2]]).to(device)
+        deltas = deltas * factor
 
         pred_cx = c_x + deltas[:, :, 0] * width
         pred_cy = c_y + deltas[:, :, 1] * height

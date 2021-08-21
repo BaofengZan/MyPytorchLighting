@@ -43,8 +43,9 @@ class RetinaNet(nn.Module):
                 layer.eval()
 
     def forward(self, x):
+        global annotations, img_batch
         if self.training:
-            img_batch, annotations = x # annotations （为所有图像的objs [M，5]）
+            img_batch, annotations = x  # annotations （为所有图像的objs [M，5]）
         else:
             img_batch = x
         # 再我们构建网络时，也要生成该网络的anchors。
@@ -56,20 +57,21 @@ class RetinaNet(nn.Module):
         # 这里的输入 x 因该区分train和test：train带有annotation test可以不用带
         anchors = self.anchors(img_batch) # [1, N, 4] N就为 9*（多层网格乘积之和）
         ##########
-        _, C3, C4, C5 = self.resnet(img_batch)
+        C2, C3, C4, C5 = self.resnet(img_batch)
         # [P3_x, p4_x, p5_x, P6_x, P7_x]
-        fpn_out_5_layer_list = self.fpn([_, C3, C4, C5])
+        fpn_out_5_layer_list = self.fpn([C2, C3, C4, C5])
+        del  C2, C3, C4, C5
         # 沿着列组合
         # fpn得结果经过回归分支，最后cat
         regression = torch.cat([self.regression(feature) for feature in fpn_out_5_layer_list], dim=1)
         classification = torch.cat([self.classification(feature) for feature in fpn_out_5_layer_list], dim=1)
 
         if self.training:
-            print("cls---", classification[0, :5, :5])
-            print("regre---", regression[0, :5, :5])
-            return self.focalLoss(classification, regression, anchors, annotations)
+            #print("cls---", classification[0, :5, :5])
+            #print("regre---", regression[0, :5, :5])
+            return self.focalLoss(classification, regression, anchors, annotations, img_batch)
         else:
-            classification = torch.randn([2, 49104, 80]) # 测试使用
+            #classification = torch.randn([2, 49104, 80]) # 测试使用
             #### 从这开始都是test使用的。如果是训练，直接应该计算loss了
             # test时，前向的结果，需要转换为prebox并nms得到最后的结果。
             # 这里regression预测是(dx,dy,dw,dh)，要根据预设的anchors 计算出预测的bbox。
@@ -83,13 +85,18 @@ class RetinaNet(nn.Module):
             finalAnchorBoxesIndexes = torch.Tensor([]).long() # 类别
             finalAnchorBoxesCoordinates = torch.Tensor([])
 
+            if torch.cuda.is_available():
+                finalScores = finalScores.cuda()
+                finalAnchorBoxesIndexes = finalAnchorBoxesIndexes.cuda()
+                finalAnchorBoxesCoordinates = finalAnchorBoxesCoordinates.cuda()
+
             # 针对一个类所有的box进行处理
             # classification shape: [Batch, K, 80]
             for i in range(classification.shape[2]):
                 print("----", i)
                 # squeeze得到我们的scores.shape == [2,...]
                 # 拿到第一个类别的所有预测值
-                scores = torch.squeeze(classification[:,:, i]) #去掉一个维度
+                scores = torch.squeeze(classification[:, :, i]) #去掉一个维度
                 scores_over_thresh = (scores > 0.05)  # 初步筛选
                 '''
                 >>> a = torch.Tensor([1,2,3,4])
@@ -120,11 +127,14 @@ class RetinaNet(nn.Module):
                 finalScores = torch.cat((finalScores, scores[anchors_nms_idx]))
                 #分类的类别信息 anchors_nms_idx.shape[0]为最后得到几个结果 并且赋值为当前类标
                 finalAnchorBoxesIndexesValue = torch.tensor([i] * anchors_nms_idx.shape[0])
+                if torch.cuda.is_available():
+                    finalAnchorBoxesIndexesValue = finalAnchorBoxesIndexesValue.cuda()
                 # finalAnchorBoxesIndexes里面存储的应该是 [0,0,1,1,1, 2, 2,79] 假设该图共有8个目标：两个0 三个1 两个2 一个79
                 finalAnchorBoxesIndexes = torch.cat((finalAnchorBoxesIndexes, finalAnchorBoxesIndexesValue))
                 # 得到最后的bbox
                 finalAnchorBoxesCoordinates = torch.cat((finalAnchorBoxesCoordinates, anchorBoxes[anchors_nms_idx]))
             # finalScores finalAnchorBoxesIndexes finalAnchorBoxesCoordinates 这三个的 shape[0]应该相同 即当前图像中检测到的目标个数
+            del classification, regression
             return finalScores, finalAnchorBoxesIndexes, finalAnchorBoxesCoordinates
 if __name__ == '__main__':
     C = torch.randn([2, 3, 512, 512])

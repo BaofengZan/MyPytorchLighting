@@ -57,6 +57,7 @@ class FPN(nn.Module):
         P7_x = self.p7_1(P6_x)
         P7_x = self.p7_2(P7_x)
 
+        del C3, C4, C5
         return [P3_x, p4_x, p5_x, P6_x, P7_x]
 
 

@@ -5,17 +5,28 @@ fpn的P3,P4,P5,P6,P7，每一个特征图都会进行5次的卷积操作，前�
 
 import torch.nn as nn
 import torch
-from model.basic import ConvBnRelu
+from model.basic import ConvBnRelu, ConvRelu
 
 class RegressionModule(nn.Module):
     def __init__(self, num_features_in, num_anchors=9, feature_size=256):
         super(RegressionModule, self).__init__()
 
-        self.cba1 = ConvBnRelu(num_features_in, feature_size, kernel_size=3, stride=1, padding=1)
-        self.cba2 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
-        self.cba3 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
-        self.cba4 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba1 = ConvBnRelu(num_features_in, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba2 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba3 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba4 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.cba1 = ConvRelu(num_features_in, feature_size, kernel_size=3, stride=1, padding=1)
+        self.cba2 = ConvRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.cba3 = ConvRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.cba4 = ConvRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
         self.output = nn.Conv2d(feature_size, 4*num_anchors, kernel_size=3, stride=1, padding=1)
+
+        for M in self.modules():
+            for m in M.modules():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.normal_(m.weight, std=0.01)
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, val=0)
 
     def forward(self, x):
         out = self.cba1(x)
@@ -46,15 +57,27 @@ class ClassificationModule(nn.Module):
         self.num_classes = num_classes
         self.num_anchors = num_anchors
 
-        self.cba1 = ConvBnRelu(num_features_in, feature_size, kernel_size=3, stride=1, padding=1)
-        self.cba2 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
-        self.cba3 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
-        self.cba4 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba1 = ConvBnRelu(num_features_in, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba2 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba3 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        # self.cba4 = ConvBnRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+
+        self.cba1 = ConvRelu(num_features_in, feature_size, kernel_size=3, stride=1, padding=1)
+        self.cba2 = ConvRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.cba3 = ConvRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
+        self.cba4 = ConvRelu(feature_size, feature_size, kernel_size=3, stride=1, padding=1)
         # 这里和regression区别在于*num_classes
+        # 每个anchor都有一个类别
         self.output = nn.Conv2d(feature_size, num_classes*num_anchors, kernel_size=3, stride=1, padding=1)
         # 还要进行一次sigmoid，为了不出现负数，将其映射到0-1之间
         self.output_act = nn.Sigmoid()
 
+        for M in self.modules():
+            for m in M.modules():
+                if isinstance(m, nn.Conv2d):
+                    nn.init.normal_(m.weight, std=0.01)
+                    if m.bias is not None:
+                        nn.init.constant_(m.bias, val=0)
 
     def forward(self, x):
         out = self.cba1(x)
@@ -67,6 +90,10 @@ class ClassificationModule(nn.Module):
 
         # out is B x C x H x W, with C = n_classes * n_anchors
         out1 = out.permute(0, 2, 3, 1)
+        batch_size, height, width,  channels = out1.shape
+        out1.view(batch_size, width, height, 9, self.num_classes)
+
+        # 最后输出 B （h*w*A）num_classes
         return out1.reshape(x.shape[0], -1, self.num_classes)
 
 

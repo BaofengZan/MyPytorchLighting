@@ -13,3 +13,15 @@ class ConvBnRelu(nn.Module):
         x = self.bn(x)
         x = self.relu(x)
         return x
+
+class ConvRelu(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, padding_mode='zeros', inplace=True):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation,
+                              groups=groups, bias=bias, padding_mode=padding_mode)
+        self.relu = nn.ReLU(inplace=inplace)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.relu(x)
+        return x

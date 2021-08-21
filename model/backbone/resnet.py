@@ -102,10 +102,10 @@ class ResNet(nn.Module):
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x2 = self.layer1(x)
-        x3 = self.layer2(x2)
-        x4 = self.layer3(x3)
-        x5 = self.layer4(x4)
+        x2 = self.layer1(x)  # 1
+        x3 = self.layer2(x2) # 2
+        x4 = self.layer3(x3) # 3
+        x5 = self.layer4(x4) # 4
         # retinaNet只需要x3-x5
         return x2, x3, x4, x5
 

@@ -9,6 +9,11 @@ retinaNet的focal loss
 import torch
 import torch.nn as nn
 
+# 可视化用的
+from model.dataset.transform import *
+import cv2
+import random
+unnormalize = UnNormalizer()
 # a ,b 格式为 x1,y1,x2,y2
 def calc_iou(a, b):
     area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
@@ -62,7 +67,7 @@ def calc_iou(a, b):
 class FocalLoss(nn.Module):
     # 标签coco是xywh但是在加载的时候转化成了xyxy
     # anno torch.Size([1, 9, 5]) xyxy catagory
-    def forward(self, classifications, regressions, anchors, annotations):
+    def forward(self, classifications, regressions, anchors, annotations, srcimg=None):
         '''
         classifications分类分支输出[batch, K, 80]
         regressions会回归分支输出[Batch, K, 4]
@@ -70,7 +75,7 @@ class FocalLoss(nn.Module):
         annotations真实标签 [1, M, 5]
         alpha * (1-p)^ gamma
         '''
-        alpha = 0.25
+        alpha = 0.25 #  0.5表示均衡
         gamma = 2.0
         batch_size = classifications.shape[0]
         classification_losses = []
@@ -85,6 +90,15 @@ class FocalLoss(nn.Module):
 
         # 开始遍历batch
         for j in range(batch_size):
+
+            # 可视化
+            ssss = srcimg[j, :, :, :].clone()
+            img = np.array(255 * unnormalize(ssss).cpu())
+            img[img < 0] = 0
+            img[img > 255] = 255
+            img = np.transpose(img, (1, 2, 0))
+            img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_BGR2RGB)
+
             #拿到一个图的模型输出
             classification = classifications[j, :, :]
             regression = regressions[j, :, :]
@@ -93,8 +107,8 @@ class FocalLoss(nn.Module):
             bbox_annot = bbox_annot[bbox_annot[:, 4] != -1]
             # 将分类置信度clamp到0-1
             # sigmoid
-            classification = torch.sigmoid(classification) # [N, 80]  N为生成的anchor个数
-
+            #classification = torch.sigmoid(classification) # [N, 80]  N为生成的anchor个数
+            classification = torch.clamp(classification, 1e-4, 1.0 - 1e-4)
             # 如果没有GT，那就看作为负样本，-(1-alpha) * p ^ gamma log(1-p)  # p是模型预测的概率值
             if bbox_annot.shape[0] == 0:
                 if torch.cuda.is_available():
@@ -191,8 +205,8 @@ class FocalLoss(nn.Module):
                 # 将目标为-1的loss值赋值为0
                 cls_loss = torch.where(torch.ne(targets, -1.0), cls_loss, torch.zeros(cls_loss.shape))
 
-            #classification_losses.append(cls_loss.sum() / torch.clamp(num_positive_anchors.float(), min=1.0))
-            classification_losses.append(cls_loss.mean())
+            classification_losses.append(cls_loss.sum() / torch.clamp(num_positive_anchors.float(), min=1.0))
+            #classification_losses.append(cls_loss.mean())
 
             # 开始计算回归损失
             # 只有正样本才计算回归损失
@@ -204,6 +218,24 @@ class FocalLoss(nn.Module):
                 anchor_heights_pi = anchor_h[positive_indices]
                 anchor_ctr_x_pi = anchor_cx[positive_indices]
                 anchor_ctr_y_pi = anchor_cy[positive_indices]
+
+                # 可视化正样本anchors
+                a_x1 = anchor_ctr_x_pi - anchor_widths_pi /2
+                a_y1 = anchor_ctr_y_pi - anchor_heights_pi /2
+                a_x2 = anchor_ctr_x_pi + anchor_widths_pi /2
+                a_y2 = anchor_ctr_y_pi + anchor_heights_pi /2
+                for idx in range(len(a_x1)):
+                    cv2.rectangle(img, (int(a_x1[idx].item()), int(a_y1[idx].item())),
+                                  (int(a_x2[idx].item()), int(a_y2[idx].item())), (random.randint(0,255),
+                                                                                   random.randint(0,255),
+                                                                                   random.randint(0,255)))
+                # gt
+                for gt in assigned_annotations:
+                    cv2.rectangle(img, (int(gt[0].item()), int(gt[1].item())),
+                                  (int(gt[2].item()), int(gt[3].item())), (0, 0, 255), 4)
+
+                cv2.imshow("anchor", img)
+                cv2.waitKey(100)
 
                 # 计算gt xyxy -> xywh
                 gt_widths = assigned_annotations[:, 2] - assigned_annotations[:, 0]

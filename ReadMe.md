@@ -4,11 +4,11 @@
 
 ![image-20210713170452200](imgs/image-20210713170452200.png)
 
-1 backbone
+1 backbone resnet
 
 ![preview](imgs/v2-3652f91ecc0683fa73d03fa99c26ab82_r.jpg)
 
-![preview](imgs/v2-b1ac9497249c5de6b812b1af729f4c44_r.jpg)
+<img src="imgs/v2-b1ac9497249c5de6b812b1af729f4c44_r.jpg" alt="preview" style="zoom:150%;" />
 
 图片来源[ResNet50网络结构图及结构详解 - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/353235794)
 
@@ -20,9 +20,22 @@
 
 ![image-20210713165336952](imgs/image-20210713165336952.png)
 
+注意：上图中一条线是一个conv操做
+
 ## anchors解析
 
 [目标检测系列一：RetinaNet之anchor_何以解忧 唯有专注-CSDN博客](https://blog.csdn.net/qq_36251958/article/details/105024133)
+
+1. `aspect_ratio`: anchor的宽高比
+   三个比例：0.5、1.0、2，对应高、方、扁。
+2. `scales`: anchor的缩放比例
+   同样是三个值，换算成浮点数为1,、1.26、1.59，都是大于1的数。
+3. `_num_anchors`: anchor的数量
+   这里是指特征图上每个像素所对应的anchor数量。很明显是长宽比与缩放比数量的乘积，本例中为3×3=9。
+4. `_strides`: 采样间隔
+   隔多远采样一次。当前值为[8, 16, 32, 64, 128]。其实对应了特征图与原始图像的尺寸比例。
+5. `_areas`: anchor基础面积
+   生成不同形状anchor的依据。目前是边长为32、64、128、256与512像素的正方形面积。
 
 ## nms
 
